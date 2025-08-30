@@ -1,0 +1,101 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: TED/TEDx Talks Bot - AI-powered conversational bot for TED and TEDx content
+
+Parameters:
+  OPENAIAPIKEY:
+    Type: String
+    Default: "your-openai-api-key"
+  ESENDPOINT:
+    Type: String
+    Default: "https://es.algofy.ai:9200"
+  ESINDEXNAME:
+    Type: String
+    Default: "ted_talks,tedx"
+  ESAPIKEY:
+    Type: String
+    Default: "MW1TNjVKZ0JXWGNydW1YQ3kzRGI6YlNGSldhMXlSNm1TZ2x5bExrbkVfZw=="
+  EMBEDDINGMODEL:
+    Type: String
+    Default: "text-embedding-3-small"
+
+# More info about Globals: https://github.com/awslabs/serverless-application-model/blob/master/docs/globals.rst
+Globals:
+  Function:
+    Timeout: 29
+    MemorySize: 1024
+
+Resources:
+  TEDBotFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Path: /TEDBotLambda/
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: AllowLambdaServiceToAssumeRole
+            Effect: Allow
+            Action:
+              - sts:AssumeRole
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+
+  TEDBotFunction:
+    Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+    Properties:
+      CodeUri: .
+      Handler: app.lambdaHandler
+      Runtime: nodejs18.x
+      Timeout: 900
+      Role: !GetAtt TEDBotFunctionRole.Arn
+      Architectures:
+        - x86_64
+      Environment:
+        Variables:
+          OPENAI_API_KEY: !Ref OPENAIAPIKEY
+          ES_ENDPOINT: !Ref ESENDPOINT
+          ES_INDEX_NAME: !Ref ESINDEXNAME
+          ES_API_KEY: !Ref ESAPIKEY
+          EMBEDDING_MODEL: !Ref EMBEDDINGMODEL
+
+  TEDBotPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref TEDBotFunction
+      FunctionUrlAuthType: 'NONE'
+      Action: lambda:InvokeFunctionUrl
+      Principal: '*'
+
+  TEDBotPermissionInvoke:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref TEDBotFunction
+      Action: lambda:InvokeFunction
+      Principal: '*'
+
+  TEDBotUrl:
+    Type: AWS::Lambda::Url
+    Properties:
+      TargetFunctionArn: !Ref TEDBotFunction
+      AuthType: NONE
+      Cors:
+        AllowCredentials: true
+        AllowHeaders: ["*"]
+        AllowMethods: ["*"]
+        AllowOrigins: ["*"]
+        ExposeHeaders: ["*"]
+        MaxAge: 86400
+
+Outputs:
+  TEDBotFunction:
+    Description: "TED Bot Lambda Function ARN"
+    Value: !GetAtt TEDBotFunction.Arn
+  TEDBotFunctionUrl:
+    Description: "TED Bot Function URL"
+    Value: !Ref TEDBotUrl
+  TEDBotFunctionRole:
+    Description: "Implicit IAM Role created for TED Bot function"
+    Value: !GetAtt TEDBotFunctionRole.Arn
